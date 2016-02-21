@@ -1,0 +1,188 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01-preview/deploymentTemplate.json",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "uniquePrefix": {
+      "type": "string"
+    },
+    "clusterName": {
+      "type": "string",
+      "defaultValue": "ComputeNode"
+    },
+    "StorageAccountName": {
+      "type": "string",
+      "defaultValue": "sroachpocstorage"
+    },  
+    "instanceCount": {
+      "type": "int"
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_A1",
+      "allowedValues": [
+        "Standard_A1",
+        "Standard_A8",
+        "Standard_A9"
+      ],
+      "metadata": {
+        "description": "Size of the VMs to be used for actual computation."
+      }
+    },
+    "OSType": {
+      "type": "string",
+      "defaultValue": "Linux",
+      "allowedValues": [
+        "Linux",
+        "Windows"
+      ],
+      "metadata": {
+        "description": "Compute OS Type"
+      }
+    },
+    "blobName": {
+      "type": "string",
+      "defaultValue": "20150826185255-00853603622-centos71-rdma-os1.vhd"
+    },
+    "vnetResourceGroup": {
+      "type": "string"
+    },
+    "vnetName": {
+      "type": "string"
+    },
+    "subnetName": {
+      "type": "string"
+    },
+    "templateLocation": {
+      "type": "string",
+      "defaultValue": "https://raw.githubusercontent.com/grandparoach/Compute-Nodes/master/"
+    },
+    "NFSHostName": {
+      "type": "string"
+    },
+    "hpcUserName": {
+      "type": "string",
+      "defaultValue": "hpc"
+    },
+    "finaldeployScriptURI": {
+      "type": "string",
+      "defaultValue": "https://raw.githubusercontent.com/grandparoach/Compute-Nodes/master/finaldeploy.sh"
+    },
+    "adminUsername": {
+      "type": "string"
+    },
+    "adminPassword": {
+      "type": "securestring"
+    }
+  },
+  "variables": {
+    "availabilitySetName": "[concat(parameters('uniquePrefix'), 'av')]",
+    "sourceImageURI" : "[concat('https://', parameters(StorageAccountName),'.blob.core.windows.net/vhds/', parameters(blobName))]",
+    "baseVHDURI" : "[concat('https://', parameters(StorageAccountName),'.blob.core.windows.net/vhd/')]", 
+    "location": "[resourceGroup().location]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Compute/availabilitySets",
+      "name": "[variables('availabilitySetName')]",
+      "apiVersion": "2015-05-01-preview",
+      "location": "[parameters('location')]"
+    },
+    {
+      "apiVersion": "2015-05-01-preview",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat('nic', parameters('clusterName'), padLeft(copyindex(), 2, '0'))]",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "[concat('nicLoop', parameters('clusterName'))]",
+        "count": "[parameters('instanceCount')]"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[concat('/subscriptions/', subscription().subscriptionId,'/resourceGroups/', parameters('vnetResourceGroup'), '/providers/Microsoft.Network/virtualNetworks/', parameters('vnetName'), '/subnets/', parameters('subnetName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2015-05-01-preview",
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat('vm', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '/Installation')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+	            "[concat('Microsoft.Compute/virtualMachines/', 'vm', parameters('clusterName'), padLeft(copyIndex(), 2, '0'))]"
+	            ],
+      "copy": {
+        "name": "foo",
+        "count": "[parameters('instanceCount')]"
+      },
+      "properties": {
+        "publisher": "Microsoft.OSTCExtensions",
+        "type": "CustomScriptForLinux",
+        "typeHandlerVersion": "1.4",
+        "settings": {
+          "fileUris": [ "[parameters('finaldeployScriptURI')]"
+           ],
+          "commandToExecute": "[concat('bash finaldeploy.sh',' ', parameters('NFSHostName'),' ', parameters('hpcUserName'))]"
+        }
+      }
+    },
+    {
+      "apiVersion": "2015-05-01-preview",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[concat('vm', parameters('clusterName'), padLeft(copyIndex(), 2, '0'))]",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "[concat('virtualMachineLoop', parameters('clusterName'))]",
+        "count": "[parameters('instanceCount')]"
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Network/networkInterfaces/', 'nic', parameters('clusterName'), padLeft(copyindex(), 2, '0'))]"
+      ],
+      "properties": {
+        "availabilitySet": {
+          "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]"
+        },
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "osProfile": {
+          "computername": "[concat('vm', parameters('clusterName'), padLeft(copyIndex(), 2, '0'))]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "osDisk": {
+            "name": "[concat(parameters('clusterName'),'-osDisk')]",
+            "osType": "[parameters('OSType')]",
+            "caching": "ReadWrite",
+            "createOption": "FromImage",
+            "image": {
+              "uri": "[variables('sourceImageURI')]"
+            },
+            "vhd": {
+              "uri": "[concat(variables('baseVHDURI'),'osdisk', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
+            }
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',concat('nic', parameters('clusterName'), padLeft(copyindex(), 2, '0')))]"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
+
+
+
+
