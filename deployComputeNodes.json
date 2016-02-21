@@ -76,8 +76,8 @@
   },
   "variables": {
     "availabilitySetName": "[concat(parameters('uniquePrefix'), 'av')]",
-    "sourceImageURI" : "[concat('https://', parameters(StorageAccountName),'.blob.core.windows.net/vhds/', parameters(blobName))]",
-    "baseVHDURI" : "[concat('https://', parameters(StorageAccountName),'.blob.core.windows.net/vhd/')]", 
+    "sourceImageURI" : "[concat('https://', parameters('StorageAccountName'),'.blob.core.windows.net/vhds/', parameters('blobName'))]",
+    "baseVHDURI" : "[concat('https://', parameters('StorageAccountName'),'.blob.core.windows.net/vhd/')]", 
     "location": "[resourceGroup().location]"
   },
   "resources": [
