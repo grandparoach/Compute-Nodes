@@ -1,109 +1,271 @@
 {
-  "$schema": "http://schema.management.azure.com/schemas/2015-01-01-preview/deploymentTemplate.json",
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "uniquePrefix": {
-      "type": "string"
-    },
-    "clusterName": {
+    "vmPrefix": {
       "type": "string",
-      "defaultValue": "ComputeNode"
+      "metadata": {
+        "description": "Base string for naming resources (max length of 8)"
+      },
+      "maxLength": 8
     },
-    "StorageAccountName": {
+    "storageAccount": {
       "type": "string",
-      "defaultValue": "sroachpocstorage"
-    },  
-    "instanceCount": {
-      "type": "int"
+      "metadata": {
+         "description": "Name of Storage Account containging the scripts to be run."
+      },
+      "defaultValue": ""
     },
-    "vmSize": {
+    "storageKey": {
       "type": "string",
-      "defaultValue": "Standard_A1",
+      "metadata": {
+         "description": "Key for Storage Account containging the scripts to be run."
+      },
+      "defaultValue": ""
+    },
+    "CompNodeVMsku": {
+      "type": "string",
+      "defaultValue": "Standard_H16r",
       "allowedValues": [
-        "Standard_A1",
         "Standard_A8",
-        "Standard_A9"
+        "Standard_A9",
+        "Standard_D2_v2",
+        "Standard_D3_v2",
+        "Standard_D4_v2",
+        "Standard_D5_v2",
+        "Standard_D11_v2",
+        "Standard_D12_v2",
+        "Standard_D13_v2",
+        "Standard_D14_v2",
+        "Standard_D15_v2",
+        "Standard_DS2_v2",
+        "Standard_DS3_v2",
+        "Standard_DS4_v2",
+        "Standard_DS5_v2",
+        "Standard_DS11_v2",
+        "Standard_DS12_v2",
+        "Standard_DS13_v2",
+        "Standard_DS14_v2",
+        "Standard_DS15_v2",
+        "Standard_F4",
+        "Standard_F8",
+        "Standard_F16",
+        "Standard_F4s",
+        "Standard_F8s",
+        "Standard_F16s",
+        "Standard_H8",
+        "Standard_H16",
+        "Standard_H8m",
+        "Standard_H16m",
+        "Standard_H16r",
+        "Standard_H16mr",
+        "Standard_NC6",
+        "Standard_NC12",
+        "Standard_NC24",
+        "Standard_NC24r"
       ],
       "metadata": {
-        "description": "Size of the VMs to be used for actual computation."
+        "description": "Instance type to use for the compute nodes"
       }
     },
-    "OSType": {
+    "computeNodeImage": {
       "type": "string",
-      "defaultValue": "Linux",
+      "defaultValue": "CentOS-HPC_7.3",
       "allowedValues": [
-        "Linux",
-        "Windows"
+        "CentOS_6.7",
+        "CentOS_7.2",
+        "CentOS-HPC_7.1",
+        "CentOS-HPC_7.3",
+        "RHEL_7.2"
       ],
       "metadata": {
-        "description": "Compute OS Type"
+        "description": "The VM image of the compute nodes"
       }
     },
-    "blobName": {
+    "computeNodeCount": {
+      "type": "int",
+      "metadata": {
+        "description": "Number of VM instances for Compute Node Scaleset (100 or less)."
+      },
+      "defaultValue": 2,
+      "maxValue": 100
+    },
+    "CNodeNameStartingIndex": {
+      "type": "int",
+      "defaultValue": 2,
+      "metadata": {
+        "description": "The starting node name number"
+      }
+    },
+    "adminUserName": {
       "type": "string",
-      "defaultValue": "20150826185255-00853603622-centos71-rdma-os1.vhd"
+      "metadata": {
+        "description": "User name for the Virtual Machine."
+      }
     },
-    "vnetResourceGroup": {
-      "type": "string"
-    },
-    "vnetName": {
-      "type": "string"
-    },
-    "subnetName": {
-      "type": "string"
-    },
-    "templateLocation": {
+    "authenticationType": {
       "type": "string",
-      "defaultValue": "https://raw.githubusercontent.com/grandparoach/Compute-Nodes/master/"
-    },
-    "NFSHostName": {
-      "type": "string"
-    },
-    "hpcUserName": {
-      "type": "string",
-      "defaultValue": "hpc"
-    },
-    "finaldeployScriptURI": {
-      "type": "string",
-      "defaultValue": "https://raw.githubusercontent.com/grandparoach/Compute-Nodes/master/finaldeploy.sh"
-    },
-    "adminUsername": {
-      "type": "string"
+      "defaultValue": "password",
+      "allowedValues": [
+        "password",
+        "sshPublicKey"
+      ],
+      "metadata": {
+        "description": "Authentication type for the virtual machines"
+      }
     },
     "adminPassword": {
-      "type": "securestring"
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Admin password for the virtual machines"
+      }
+    },
+    "sshPublicKey": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "SSH public key that will be included on all nodes. The OpenSSH public key can be generated with tools like ssh-keygen on Linux or OS X."
+      }
+    },
+    "existingVNetName": {
+      "type": "string",
+      "defaultValue": "ARMHPCVNet",
+      "metadata": {
+        "description": "name of existing Virtual Network"
+      }
+    },
+    "existingVNetResourceGroup": {
+      "type": "string",
+       "defaultValue": "ARMHPC",
+      "metadata": {
+        "description": "name of Resource Group for existing Virtual Network"
+      }
+    },
+    "existingSubnetName": {
+      "type": "string",
+      "defaultValue": "Subnet-2",
+      "metadata": {
+        "description": "name of existing Virtual Network"
+      }
+    },
+    "ComputeNodeStaticIPAddressPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.2",
+      "metadata": {
+        "description": "The first 3 octets of the Compute Node Static IP Addresses"
+      }
+    },
+    "CNodeStaticIPAddress4thOctetIndex": {
+      "type": "int",
+      "defaultValue": 21,
+      "metadata": {
+        "description": "The offset amount for the last octect of the Static IP Addresses"
+      }
     }
   },
   "variables": {
-    "availabilitySetName": "[concat(parameters('uniquePrefix'), 'av')]",
-    "sourceImageURI" : "[concat('https://', parameters('StorageAccountName'),'.blob.core.windows.net/vhds/', parameters('blobName'))]",
-    "baseVHDURI" : "[concat('https://', parameters('StorageAccountName'),'.blob.core.windows.net/vhd/')]", 
-    "location": "[resourceGroup().location]"
-  },
+    "longNamingInfix": "[toLower(parameters('vmPrefix'))]",
+    "vnetID": "[resourceId(parameters('existingVNetResourceGroup'), 'Microsoft.Network/virtualNetworks', parameters('existingVNetName'))]",
+    "SubnetRef": "[concat(variables('vnetID'),'/subnets/', parameters('existingSubnetName'))]",
+    "masterBoxName": "[concat(variables('longNamingInfix'), 'master')]",
+    "sshKeyPath": "[concat('/home/',parameters('adminUserName'),'/.ssh/authorized_keys')]",
+    "computeImages": {
+      "CentOS_6.7": {
+        "publisher": "OpenLogic",
+        "offer": "CentOS",
+        "sku": "6.7",
+        "version": "latest"
+      },
+      "CentOS_7.2": {
+        "publisher": "OpenLogic",
+        "offer": "CentOS",
+        "sku": "7.2",
+        "version": "latest"
+      },
+      "CentOS-HPC_7.1": {
+        "publisher": "OpenLogic",
+        "offer": "CentOS-HPC",
+        "sku": "7.1",
+        "version": "latest"
+      },
+      "CentOS-HPC_7.3": {
+        "publisher": "OpenLogic",
+        "offer": "CentOS-HPC",
+        "sku": "7.3",
+        "version": "latest"
+      },
+      "RHEL_7.2": {
+        "publisher": "RedHat",
+        "offer": "RHEL",
+        "sku": "7.2",
+        "version": "latest"
+      },
+      "W2012R2": {
+        "publisher": "MicrosoftWindowsServer",
+        "offer": "WindowsServer",
+        "sku": "2012-R2-Datacenter",
+        "version": "latest"
+      }
+    },
+    "linuxConfiguration_sshPublicKey": {
+      "disablePasswordAuthentication": "true",
+      "ssh": {
+        "publicKeys": [
+          {
+            "path": "[variables('sshKeyPath')]",
+            "keyData": "[parameters('sshPublicKey')]"
+          }
+        ]
+      }
+    },
+    "linuxConfiguration_password": { },
+    "linuxConfiguration": "[variables(concat('linuxConfiguration_',parameters('authenticationType')))]",
+    "NodeimageReference": "[variables('computeImages')[parameters('computeNodeImage')]]",
+    "vmScripts": {
+      "scriptsToDownload": [
+        "https://srseisspace.blob.core.windows.net/scripts/cn-setup.sh"
+      ],
+      "commandToExecute": "[concat('bash cn-setup.sh ', variables('masterBoxName'))]"
+    },
+    "AvailabilitySetSettings": {
+      "name": "ComputeNodeAvailabilitySet",
+      "faultDomainCount": "3",
+      "updateDomainCount": "5"
+    }
+  },  
   "resources": [
     {
+      "apiVersion": "2016-04-30-preview",
       "type": "Microsoft.Compute/availabilitySets",
-      "name": "[variables('availabilitySetName')]",
-      "apiVersion": "2015-05-01-preview",
-      "location": "[resourceGroup().location]"
+         "sku": {
+            "name": "Aligned"
+         },
+      "name": "[variables('AvailabilitySetSettings').name]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "platformFaultDomainCount": "[variables('AvailabilitySetSettings').faultDomainCount]",
+        "platformUpdateDomainCount": "[variables('AvailabilitySetSettings').updateDomainCount]"
+      }
     },
     {
-      "apiVersion": "2015-05-01-preview",
+      "apiVersion": "2015-06-15",
       "type": "Microsoft.Network/networkInterfaces",
-      "name": "[concat('nic', parameters('clusterName'), padLeft(copyindex(), 2, '0'))]",
+      "name": "[concat(parameters('vmPrefix'), '-cn-nic', padLeft(copyindex(parameters('CNodeNameStartingIndex')), 2, '0'))]",
       "location": "[resourceGroup().location]",
       "copy": {
-        "name": "[concat('nicLoop', parameters('clusterName'))]",
-        "count": "[parameters('instanceCount')]"
+        "name": "computeNodeNicCopy",
+        "count": "[parameters('computeNodeCount')]"
       },
       "properties": {
         "ipConfigurations": [
           {
-            "name": "ipconfig1",
+            "name": "computeNodeIp",
             "properties": {
-              "privateIPAllocationMethod": "Dynamic",
+              "privateIPAllocationMethod": "Static",
+              "privateIPAddress": "[concat(parameters('ComputeNodeStaticIPAddressPrefix'),'.', copyindex(parameters('CNodeStaticIPAddress4thOctetIndex')))]",
               "subnet": {
-                "id": "[concat('/subscriptions/', subscription().subscriptionId,'/resourceGroups/', parameters('vnetResourceGroup'), '/providers/Microsoft.Network/virtualNetworks/', parameters('vnetName'), '/subnets/', parameters('subnetName'))]"
+                "id": "[variables('SubnetRef')]"
               }
             }
           }
@@ -111,79 +273,78 @@
       }
     },
     {
-      "apiVersion": "2015-05-01-preview",
-      "type": "Microsoft.Compute/virtualMachines/extensions",
-      "name": "[concat('vm', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '/Installation')]",
-      "location": "[resourceGroup().location]",
-      "dependsOn": [
-	            "[concat('Microsoft.Compute/virtualMachines/', 'vm', parameters('clusterName'), padLeft(copyIndex(), 2, '0'))]"
-	            ],
-      "copy": {
-        "name": "foo",
-        "count": "[parameters('instanceCount')]"
-      },
-      "properties": {
-        "publisher": "Microsoft.OSTCExtensions",
-        "type": "CustomScriptForLinux",
-        "typeHandlerVersion": "1.4",
-        "settings": {
-          "fileUris": [ "[parameters('finaldeployScriptURI')]"
-           ],
-          "commandToExecute": "[concat('bash finaldeploy.sh',' ', parameters('NFSHostName'),' ', parameters('hpcUserName'))]"
-        }
-      }
-    },
-    {
-      "apiVersion": "2015-05-01-preview",
+      "apiVersion": "2016-04-30-preview",
       "type": "Microsoft.Compute/virtualMachines",
-      "name": "[concat('vm', parameters('clusterName'), padLeft(copyIndex(), 2, '0'))]",
+      "name": "[concat(parameters('vmPrefix'),'-cn', padLeft(copyindex(parameters('CNodeNameStartingIndex')), 2, '0'))]",
       "location": "[resourceGroup().location]",
-      "copy": {
-        "name": "[concat('virtualMachineLoop', parameters('clusterName'))]",
-        "count": "[parameters('instanceCount')]"
-      },
-      "dependsOn": [
-        "[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]",
-        "[concat('Microsoft.Network/networkInterfaces/', 'nic', parameters('clusterName'), padLeft(copyindex(), 2, '0'))]"
+      "dependsOn": [  
+        "[concat('Microsoft.Compute/availabilitySets/', variables('AvailabilitySetSettings').name)]",
+        "[concat('Microsoft.Network/networkInterfaces/', parameters('vmPrefix'), '-cn-nic', padLeft(copyindex(parameters('CNodeNameStartingIndex')), 2, '0'))]"
       ],
+      "copy": {
+        "name": "computeNodeVmCopy",
+        "count": "[parameters('computeNodeCount')]"
+      },
       "properties": {
         "availabilitySet": {
-          "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]"
+          "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySetSettings').name)]"
         },
         "hardwareProfile": {
-          "vmSize": "[parameters('vmSize')]"
+          "vmSize": "[parameters('CompNodeVMsku')]"
         },
         "osProfile": {
-          "computername": "[concat('vm', parameters('clusterName'), padLeft(copyIndex(), 2, '0'))]",
-          "adminUsername": "[parameters('adminUsername')]",
-          "adminPassword": "[parameters('adminPassword')]"
+          "computerName": "[concat(parameters('vmPrefix'),'-cn', padLeft(copyindex(parameters('CNodeNameStartingIndex')), 2, '0'))]",
+          "adminUsername": "[parameters('adminUserName')]",
+          "adminPassword": "[parameters('adminPassword')]",
+          "linuxConfiguration": "[variables('linuxConfiguration')]"
         },
         "storageProfile": {
-          "osDisk": {
-            "name": "[concat(parameters('clusterName'),'-osDisk')]",
-            "osType": "[parameters('OSType')]",
-            "caching": "ReadWrite",
+          "imageReference": "[variables('NodeimageReference')]", 
+           "osDisk": {
+            "caching": "ReadOnly",
             "createOption": "FromImage",
-            "image": {
-              "uri": "[variables('sourceImageURI')]"
-            },
-            "vhd": {
-              "uri": "[concat(variables('baseVHDURI'),'osdisk', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
-            }
+             "managedDisk": {
+                "storageAccountType": "Standard_LRS"
+             }
           }
         },
         "networkProfile": {
           "networkInterfaces": [
             {
-              "id": "[resourceId('Microsoft.Network/networkInterfaces',concat('nic', parameters('clusterName'), padLeft(copyindex(), 2, '0')))]"
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(parameters('vmPrefix'), '-cn-nic', padLeft(copyindex(parameters('CNodeNameStartingIndex')), 2, '0')))]"
             }
           ]
+        }
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat(parameters('vmPrefix'),'-cn', padLeft(copyindex(parameters('CNodeNameStartingIndex')), 2, '0'), '/init')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[concat('Microsoft.Compute/virtualMachines/', concat(parameters('vmPrefix'), '-cn', padLeft(copyindex(parameters('CNodeNameStartingIndex')), 2, '0')))]"
+      ],
+      "copy": {
+        "name": "computeNodeExtensionsCopy",
+        "count": "[parameters('computeNodeCount')]"
+      },
+      "properties": {
+         "publisher": "Microsoft.Azure.Extensions",
+        "type": "CustomScript",
+        "typeHandlerVersion": "2.0",
+        "autoUpgradeMinorVersion": true,
+        "settings": {
+          "fileUris": "[variables('vmScripts').scriptsToDownload]"
+        },
+        "protectedSettings": {
+          "commandToExecute": "[variables('vmScripts').commandToExecute]",
+          "storageAccountName": "[parameters('storageAccount')]",
+          "storageAccountKey": "[parameters('storageKey')]"
         }
       }
     }
   ]
 }
-
-
 
 
